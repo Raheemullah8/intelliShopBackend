@@ -1,12 +1,16 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
+
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+//
+// ====================== USER MODEL ======================
+//
 
 model User {
   id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -18,9 +22,138 @@ model User {
   reset_password_token  String?   @db.Text
   reset_password_expire DateTime? @db.Timestamp(6)
   created_at            DateTime  @default(now()) @db.Timestamp(6)
+
+  // Relations
+  products Product[]
+  orders   Order[]
+  reviews  Review[]
+  cart     Cart?
 }
 
 enum Role {
   USER
   ADMIN
+}
+
+//
+// ====================== PRODUCT MODEL ======================
+//
+
+model Product {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String   @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  categoryId  String   @db.Uuid
+  ratings     Decimal  @default(0) @db.Decimal(3, 2)
+  images      Json     @default("[]") @db.JsonB
+  stock       Int      @db.Integer
+  created_by  String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+
+  // Relations
+  user       User        @relation(fields: [created_by], references: [id], onDelete: Cascade)
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  reviews    Review[]
+  orderItems OrderItem[]
+  cartItems  CartItem[] // ✅ Added this line (fixes the relation error)
+}
+
+//
+// ====================== CATEGORY MODEL ======================
+//
+
+model Category {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+
+  // Relations
+  products Product[]
+}
+
+//
+// ====================== REVIEW MODEL ======================
+//
+
+model Review {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rating     Int      @db.Integer
+  comment    String?  @db.Text
+  created_at DateTime @default(now()) @db.Timestamp(6)
+
+  // Relations
+  userId    String  @db.Uuid
+  productId String  @db.Uuid
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+//
+// ====================== ORDER MODEL ======================
+//
+
+model Order {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  totalAmount Decimal     @db.Decimal(10, 2)
+  status      OrderStatus @default(PENDING)
+  created_at  DateTime    @default(now()) @db.Timestamp(6)
+  userId      String      @db.Uuid
+
+  // Relations
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+//
+// ====================== ORDER ITEM MODEL ======================
+//
+
+model OrderItem {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quantity  Int     @db.Integer
+  price     Decimal @db.Decimal(10, 2)
+  productId String  @db.Uuid
+  orderId   String  @db.Uuid
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+//
+// ====================== CART MODEL ======================
+//
+
+model Cart {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @unique @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamp(6)
+
+  // Relations
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cartItems CartItem[]
+}
+
+//
+// ====================== CART ITEM MODEL ======================
+//
+
+model CartItem {
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quantity  Int    @db.Integer
+  productId String @db.Uuid
+  cartId    String @db.Uuid
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
 }
